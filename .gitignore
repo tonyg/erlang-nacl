@@ -1,0 +1,5 @@
+.eunit/
+*.o
+priv/nacl_nif.so
+ebin/
+scratch/
