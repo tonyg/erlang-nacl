@@ -2,7 +2,7 @@
 
 #include <sodium.h>
 
-static ERL_NIF_TERM nacl_randombytes(ErlNifEnv* env, int argc, ERL_NIF_TERM const argv[])
+static ERL_NIF_TERM nacl_randombytes(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
 {
   unsigned int requested_size;
   ErlNifBinary result;
@@ -18,7 +18,7 @@ static ERL_NIF_TERM nacl_randombytes(ErlNifEnv* env, int argc, ERL_NIF_TERM cons
   return enif_make_binary(env, &result);
 }
 
-static ERL_NIF_TERM nacl_hash(ErlNifEnv* env, int argc, ERL_NIF_TERM const argv[])
+static ERL_NIF_TERM nacl_hash(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
 {
   ErlNifBinary input;
   ErlNifBinary result;
