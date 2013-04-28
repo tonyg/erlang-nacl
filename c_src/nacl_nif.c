@@ -2,6 +2,10 @@
 
 #include <sodium.h>
 
+static ERL_NIF_TERM nacl_error_tuple(ErlNifEnv *env, char *error_atom) {
+  return enif_make_tuple2(env, enif_make_atom(env, "error"), enif_make_atom(env, error_atom));
+}
+
 static ERL_NIF_TERM nacl_randombytes(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
 {
   unsigned int requested_size;
@@ -11,7 +15,7 @@ static ERL_NIF_TERM nacl_randombytes(ErlNifEnv *env, int argc, ERL_NIF_TERM cons
     return enif_make_badarg(env);
 
   if (!enif_alloc_binary(requested_size, &result))
-    return enif_make_badarg(env); /* TODO: distinguish from other badarg? */
+    return nacl_error_tuple(env, "alloc_failed");
 
   randombytes(result.data, result.size);
 
@@ -27,7 +31,7 @@ static ERL_NIF_TERM nacl_hash(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[
     return enif_make_badarg(env);
 
   if (!enif_alloc_binary(crypto_hash_BYTES, &result))
-    return enif_make_badarg(env); /* TODO: distinguish from other badarg? */
+    return nacl_error_tuple(env, "alloc_failed");
 
   crypto_hash(result.data, input.data, input.size);
 
