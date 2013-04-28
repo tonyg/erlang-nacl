@@ -1,17 +1,23 @@
 -module(nacl_nif).
 
--export([randombytes/1, hash/1]).
+-export([randombytes/1,
+         hash/1,
+         box_keypair/0,
+         box_random_nonce/0]).
 
 -on_load(init/0).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-include("nacl.hrl").
 -endif.
 
 init() -> erlang:load_nif(filename:join(nacl_app:priv_dir(), ?MODULE), 0).
 
 randombytes(_Count) -> erlang:nif_error(not_loaded).
 hash(_Bytes) -> erlang:nif_error(not_loaded).
+box_keypair() -> erlang:nif_error(not_loaded).
+box_random_nonce() -> erlang:nif_error(not_loaded).
 
 -ifdef(TEST).
 
@@ -32,5 +38,13 @@ hash_test() ->
     ?assertEqual("91ea1245f20d46ae9a037a989f54f1f790f0a47607eeb8a14d12890cea77a1bb" ++
                      "c6c7ed9cf205e67b7f2b8fd4c7dfd3a7a8617e45f3c463d481c7e586c39ac1ed",
                  b2h(hash(<<"The quick brown fox jumps over the lazy dog.">>))).
+
+box_keypair_test() ->
+    #nacl_box_keypair{pk = PK, sk = SK} = box_keypair(),
+    ?assertEqual(true, is_binary(PK)),
+    ?assertEqual(true, is_binary(SK)).
+
+box_random_nonce_test() ->
+    ?assertEqual(true, is_binary(box_random_nonce())).
 
 -endif.
