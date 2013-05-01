@@ -3,7 +3,11 @@
 -export([randombytes/1,
          hash/1,
          box_keypair/0,
-         box_random_nonce/0]).
+         box_random_nonce/0,
+         box_ZEROBYTES/0,
+         box_BOXZEROBYTES/0,
+         box_padded/4,
+         box_open_padded/4]).
 
 -on_load(init/0).
 
@@ -18,6 +22,10 @@ randombytes(_Count) -> erlang:nif_error(not_loaded).
 hash(_Bytes) -> erlang:nif_error(not_loaded).
 box_keypair() -> erlang:nif_error(not_loaded).
 box_random_nonce() -> erlang:nif_error(not_loaded).
+box_ZEROBYTES() -> erlang:nif_error(not_loaded).
+box_BOXZEROBYTES() -> erlang:nif_error(not_loaded).
+box_padded(_PaddedMsg, _Nonce, _Pk, _Sk) -> erlang:nif_error(not_loaded).
+box_open_padded(_PaddedCipher, _Nonce, _Pk, _Sk) -> erlang:nif_error(not_loaded).
 
 -ifdef(TEST).
 
@@ -46,5 +54,16 @@ box_keypair_test() ->
 
 box_random_nonce_test() ->
     ?assertEqual(true, is_binary(box_random_nonce())).
+
+pk1() -> <<16#de1042928b74e9f96cf3f3e290c16cb4eba9c696e9a1e15c7f4d0514ddce1154:256>>.
+sk1() -> <<16#d54ff4b666a43070ab20937a92c49ecf65503583f8942350fc197c5023b015c3:256>>.
+
+box_test() ->
+    Nonce = <<16#065114ca5a687e0544a88e6fc757b30afc70a0355854fd54:192>>,
+    Msg = <<"hello">>,
+    Boxed = box_padded([binary:copy(<<0>>, box_ZEROBYTES()), Msg], Nonce, pk1(), sk1()),
+    ?assertEqual("3bc95b7983622e8afb763723703e17c6739be9c316", b2h(Boxed)),
+    Unboxed = box_open_padded([binary:copy(<<0>>, box_BOXZEROBYTES()), Boxed], Nonce, pk1(), sk1()),
+    ?assertEqual(<<"hello">>, Unboxed).
 
 -endif.
