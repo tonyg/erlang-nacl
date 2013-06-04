@@ -105,4 +105,12 @@ secretbox_test() ->
     {ok, M} = secretbox_open(Enc, K),
     ?assertEqual(Msg, M).
 
+secretbox_unauth_test() ->
+    K       = secretbox_new_key(),
+    Msg     = <<"hello">>,
+    {enc, Cip, Non} = secretbox(Msg, K),
+    CipBad  = randombytes(size(Cip)),
+    {error, Err} = secretbox_open({enc, CipBad, Non}, K),
+    ?assertEqual(Err, bad_signature).
+
 -endif.
