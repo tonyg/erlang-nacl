@@ -7,7 +7,18 @@
          box_ZEROBYTES/0,
          box_BOXZEROBYTES/0,
          box_padded/4,
-         box_open_padded/4]).
+         box_open_padded/4,
+         secretbox/3,
+         secretbox/2,
+         secretbox_random_nonce/0,
+         secretbox_new_key/0,
+         secretbox_open/3,
+         secretbox_open/2,
+         secretbox_ZEROBYTES/0,
+         secretbox_BOXZEROBYTES/0,
+         secretbox_NONCEBYTES/0,
+         secretbox_KEYBYTES/0
+        ]).
 
 -on_load(init/0).
 
@@ -26,6 +37,27 @@ box_ZEROBYTES() -> erlang:nif_error(not_loaded).
 box_BOXZEROBYTES() -> erlang:nif_error(not_loaded).
 box_padded(_PaddedMsg, _Nonce, _Pk, _Sk) -> erlang:nif_error(not_loaded).
 box_open_padded(_PaddedCipher, _Nonce, _Pk, _Sk) -> erlang:nif_error(not_loaded).
+secretbox(_Msg, _Nonce, _Key) -> erlang:nif_error(not_loaded).
+secretbox_open(_Ciphertext, _Nonce, _Key) -> erlang:nif_error(not_loaded).
+secretbox_ZEROBYTES() -> erlang:nif_error(not_loaded).
+secretbox_BOXZEROBYTES() -> erlang:nif_error(not_loaded).
+secretbox_NONCEBYTES() -> erlang:nif_error(not_loaded).
+secretbox_KEYBYTES() -> erlang:nif_error(not_loaded).
+
+
+secretbox_new_key() -> 
+    randombytes(secretbox_KEYBYTES()).
+secretbox_random_nonce() ->
+    randombytes(secretbox_NONCEBYTES()).
+
+secretbox(Msg, Key) ->
+    Nonce = secretbox_random_nonce(),
+    Enc = secretbox([binary:copy(<<0>>, secretbox_ZEROBYTES()), Msg], Nonce, Key),
+    {enc, Nonce, Enc}.
+    
+secretbox_open({enc, Nonce, Enc}, Key) ->
+    secretbox_open([binary:copy(<<0>>, secretbox_BOXZEROBYTES()), Enc], Nonce, Key).
+    
 
 -ifdef(TEST).
 
@@ -65,5 +97,20 @@ box_test() ->
     ?assertEqual("3bc95b7983622e8afb763723703e17c6739be9c316", b2h(Boxed)),
     Unboxed = box_open_padded([binary:copy(<<0>>, box_BOXZEROBYTES()), Boxed], Nonce, pk1(), sk1()),
     ?assertEqual(<<"hello">>, Unboxed).
+
+secretbox_test() ->
+    K       = secretbox_new_key(),
+    Msg     = <<"hello">>,
+    Enc     = secretbox(Msg, K),
+    {ok, M} = secretbox_open(Enc, K),
+    ?assertEqual(Msg, M).
+
+secretbox_unauth_test() ->
+    K       = secretbox_new_key(),
+    Msg     = <<"hello">>,
+    {enc, Non, Cip} = secretbox(Msg, K),
+    CipBad  = randombytes(size(Cip)),
+    {error, Err} = secretbox_open({enc, Non, CipBad}, K),
+    ?assertEqual(Err, bad_signature).
 
 -endif.
