@@ -1,5 +1,6 @@
 #include "erl_nif.h"
 
+#include <assert.h>
 #include <sodium.h>
 
 static ERL_NIF_TERM nacl_error_tuple(ErlNifEnv *env, char *error_atom) {
@@ -274,12 +275,49 @@ static ERL_NIF_TERM nacl_box_open_padded(ErlNifEnv *env, int argc, ERL_NIF_TERM 
 		argv);
 }
 
-static ERL_NIF_TERM nacl_secretbox_padded(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
+static ERL_NIF_TERM nacl_secretbox_padded_dirty(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
 {
 	ErlNifBinary key;
 	ErlNifBinary nonce;
 	ErlNifBinary padded_message;
 	ErlNifBinary padded_ciphertext;
+	ERL_NIF_TERM res;
+	int r = 1;
+	
+	r &= enif_inspect_iolist_as_binary(env, argv[0], &padded_message);
+	r &= enif_inspect_iolist_as_binary(env, argv[1], &nonce);
+	r &= enif_inspect_iolist_as_binary(env, argv[2], &key);
+	assert(r);
+
+	if (!enif_alloc_binary(padded_message.size, &padded_ciphertext)) {
+		res = nacl_error_tuple(env, "alloc_failed");
+		goto finalize;
+	}
+
+	crypto_secretbox(
+		padded_ciphertext.data,
+		padded_message.data,
+		padded_message.size,
+		nonce.data,
+		key.data
+		);
+
+	res = enif_make_sub_binary(env,
+				    enif_make_binary(env, &padded_ciphertext),
+				    crypto_secretbox_BOXZEROBYTES,
+				    padded_message.size - crypto_secretbox_BOXZEROBYTES);
+finalize:
+	return enif_schedule_dirty_nif_finalizer(
+		env,
+		res,
+		&enif_dirty_nif_finalizer);
+}
+
+static ERL_NIF_TERM nacl_secretbox_padded(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
+{
+	ErlNifBinary key;
+	ErlNifBinary nonce;
+	ErlNifBinary padded_message;
 
 	if (!enif_inspect_iolist_as_binary(env, argv[0], &padded_message))
 		return enif_make_badarg(env);
@@ -290,25 +328,56 @@ static ERL_NIF_TERM nacl_secretbox_padded(ErlNifEnv *env, int argc, ERL_NIF_TERM
 	if (!enif_inspect_iolist_as_binary(env, argv[2], &key))
 		return enif_make_badarg(env);
 
-	if (key.size != crypto_secretbox_KEYBYTES) return enif_make_badarg(env);
-	if (nonce.size !=  crypto_secretbox_NONCEBYTES) return enif_make_badarg(env);
-	if (padded_message.size < crypto_secretbox_ZEROBYTES) return enif_make_badarg(env);
+	if (key.size != crypto_secretbox_KEYBYTES)
+		return enif_make_badarg(env);
+	if (nonce.size !=  crypto_secretbox_NONCEBYTES)
+		return enif_make_badarg(env);
+	if (padded_message.size < crypto_secretbox_ZEROBYTES)
+		return enif_make_badarg(env);
 
-	if (!enif_alloc_binary(padded_message.size, &padded_ciphertext))
-		return nacl_error_tuple(env, "alloc_failed");
+	return enif_schedule_dirty_nif(
+		env,
+		ERL_NIF_DIRTY_JOB_CPU_BOUND,
+		&nacl_secretbox_padded_dirty,
+		argc,
+		argv);
+}
 
-	crypto_secretbox(
-		padded_ciphertext.data,
-		padded_message.data,
-		padded_message.size,
-		nonce.data,
-		key.data
-		);
+static ERL_NIF_TERM nacl_secretbox_open_padded_dirty(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
+{
+	ErlNifBinary key;
+	ErlNifBinary nonce;
+	ErlNifBinary padded_ciphertext;
+	ErlNifBinary padded_message;
+	ERL_NIF_TERM res;
 
-	return enif_make_sub_binary(env,
-				    enif_make_binary(env, &padded_ciphertext),
-				    crypto_secretbox_BOXZEROBYTES,
-				    padded_message.size - crypto_secretbox_BOXZEROBYTES);
+	int r = 1;
+
+	r &= enif_inspect_iolist_as_binary(env, argv[0], &padded_ciphertext);
+	r &= enif_inspect_iolist_as_binary(env, argv[1], &nonce);
+	r &= enif_inspect_iolist_as_binary(env, argv[2], &key);
+	assert(r);
+
+	if (!enif_alloc_binary(padded_ciphertext.size, &padded_message)) {
+		res = nacl_error_tuple(env, "alloc_failed");
+		goto finalize;
+	}
+
+	if (crypto_secretbox_open(padded_message.data, padded_ciphertext.data, padded_ciphertext.size,
+				  nonce.data, key.data)) {
+		res = nacl_error_tuple(env, "crypto_failed");
+		goto finalize;
+	}
+
+	res = enif_make_sub_binary(env,
+				    enif_make_binary(env, &padded_message),
+				    crypto_secretbox_ZEROBYTES,
+				    padded_ciphertext.size - crypto_secretbox_ZEROBYTES);
+finalize:
+	return enif_schedule_dirty_nif_finalizer(
+		env,
+		res,
+		&enif_dirty_nif_finalizer);
 }
 
 static ERL_NIF_TERM nacl_secretbox_open_padded(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
@@ -316,7 +385,6 @@ static ERL_NIF_TERM nacl_secretbox_open_padded(ErlNifEnv *env, int argc, ERL_NIF
 	ErlNifBinary key;
 	ErlNifBinary nonce;
 	ErlNifBinary padded_ciphertext;
-	ErlNifBinary padded_message;
 
 	if (!enif_inspect_iolist_as_binary(env, argv[0], &padded_ciphertext))
 		return enif_make_badarg(env);
@@ -327,23 +395,21 @@ static ERL_NIF_TERM nacl_secretbox_open_padded(ErlNifEnv *env, int argc, ERL_NIF
 	if (!enif_inspect_iolist_as_binary(env, argv[2], &key))
 		return enif_make_badarg(env);
 
-	if (key.size != crypto_secretbox_KEYBYTES) return enif_make_badarg(env);
-	if (nonce.size !=  crypto_secretbox_NONCEBYTES) return enif_make_badarg(env);
-	if (padded_ciphertext.size < crypto_secretbox_BOXZEROBYTES) return enif_make_badarg(env);
+	if (key.size != crypto_secretbox_KEYBYTES)
+		return enif_make_badarg(env);
+	if (nonce.size !=  crypto_secretbox_NONCEBYTES)
+		return enif_make_badarg(env);
+	if (padded_ciphertext.size < crypto_secretbox_BOXZEROBYTES)
+		return enif_make_badarg(env);
 
-	if (!enif_alloc_binary(padded_ciphertext.size, &padded_message))
-		return nacl_error_tuple(env, "alloc_failed");
-
-	if (crypto_secretbox_open(padded_message.data, padded_ciphertext.data, padded_ciphertext.size,
-				  nonce.data, key.data)) {
-		return nacl_error_tuple(env, "crypto_failed");
-	}
-
-	return enif_make_sub_binary(env,
-				    enif_make_binary(env, &padded_message),
-				    crypto_secretbox_ZEROBYTES,
-				    padded_ciphertext.size - crypto_secretbox_ZEROBYTES);
+	return enif_schedule_dirty_nif(
+		env,
+		ERL_NIF_DIRTY_JOB_CPU_BOUND,
+		&nacl_secretbox_open_padded_dirty,
+		argc,
+		argv);
 }
+
 
 static ERL_NIF_TERM nacl_secretbox_ZEROBYTES(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
 {
