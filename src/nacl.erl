@@ -52,8 +52,12 @@ secretbox_random_nonce() -> randombytes(nacl_nif:secretbox_NONCEBYTES()).
 
 secretbox(Msg, Nonce, Key) ->
     PaddedMsg = [binary:copy(<<0>>, nacl_nif:secretbox_ZEROBYTES()), Msg],
-    #nacl_envelope{nonce = Nonce,
-                   ciphertext = nacl_nif:secretbox_padded(PaddedMsg, Nonce, Key)}.
+    case nacl_nif:secretbox_padded(PaddedMsg, Nonce, Key) of
+      {error, Error} ->
+        {error, Error};
+      Bin when is_binary(Bin) ->
+        #nacl_envelope{nonce = Nonce, ciphertext = Bin}
+    end.
 
 secretbox(Msg, Key) ->
     secretbox(Msg, secretbox_random_nonce(), Key).
@@ -126,7 +130,7 @@ box_open_fail_test() ->
 secretbox_test() ->
     K       = secretbox_key(),
     Msg     = <<"hello">>,
-    Enc     = secretbox(Msg, K),
+    {ok, Enc}     = secretbox(Msg, K),
     {ok, M} = secretbox_open(Enc, K),
     ?assertEqual(Msg, M).
 
