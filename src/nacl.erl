@@ -56,7 +56,7 @@ secretbox(Msg, Nonce, Key) ->
       {error, Error} ->
         {error, Error};
       Bin when is_binary(Bin) ->
-        #nacl_envelope{nonce = Nonce, ciphertext = Bin}
+        {ok,#nacl_envelope{nonce = Nonce, ciphertext = Bin}}
     end.
 
 secretbox(Msg, Key) ->
