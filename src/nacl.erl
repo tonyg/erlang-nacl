@@ -137,7 +137,7 @@ secretbox_test() ->
 secretbox_unauth_test() ->
     K       = secretbox_key(),
     Msg     = <<"hello">>,
-    #nacl_envelope{nonce = Non, ciphertext = Cip} = secretbox(Msg, K),
+    {ok, #nacl_envelope{nonce = Non, ciphertext = Cip}} = secretbox(Msg, K),
     CipBad  = randombytes(size(Cip)),
     {error, Err} = secretbox_open(#nacl_envelope{nonce = Non, ciphertext = CipBad}, K),
     ?assertEqual(Err, crypto_failed).
