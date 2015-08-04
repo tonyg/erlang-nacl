@@ -3,3 +3,4 @@
 priv/nacl_nif.so
 ebin/
 scratch/
+.rebar/
